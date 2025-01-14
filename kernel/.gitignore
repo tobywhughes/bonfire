@@ -1,2 +1,5 @@
 /kernel
 /target
+
+debug/
+.rustc_info.json

@@ -3,8 +3,14 @@
 
 use core::arch::asm;
 
-use limine::request::{FramebufferRequest, RequestsEndMarker, RequestsStartMarker};
+use framebuffer::FrameBuffer;
+use limine::request::{RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
+use terminal::{Terminal, TERMINAL};
+
+mod framebuffer;
+mod psf;
+mod terminal;
 
 /// Sets the base revision to the latest revision supported by the crate.
 /// See specification for further info.
@@ -13,10 +19,6 @@ use limine::BaseRevision;
 // The .requests section allows limine to find the requests faster and more safely.
 #[link_section = ".requests"]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
-
-#[used]
-#[link_section = ".requests"]
-static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
 /// Define the stand and end markers for Limine requests.
 #[used]
@@ -32,24 +34,30 @@ unsafe extern "C" fn kmain() -> ! {
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
 
-    if let Some(framebuffer_response) = FRAMEBUFFER_REQUEST.get_response() {
-        if let Some(framebuffer) = framebuffer_response.framebuffers().next() {
-            for i in 0..100_u64 {
-                // Calculate the pixel offset using the framebuffer information we obtained above.
-                // We skip `i` scanlines (pitch is provided in bytes) and add `i * 4` to skip `i` pixels forward.
-                let pixel_offset = i * framebuffer.pitch() + i * 4;
+    println!("Hello. This is a test.\nHello. This is testing a newline!\nHello, this is testing the error char \t");
+    println!("abcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyz");
+    println!("Color Test \x1b[31mShould be red\x1b[0m Should be back to normal");
+    debug!("Debug string test");
+    info!("Info string test");
+    warn!("Warn string test");
+    error!("Error string test");
 
-                // Write 0xFFFFFFFF to the provided pixel offset to fill it white.
-                *(framebuffer.addr().add(pixel_offset as usize) as *mut u32) = 0xFFFFFFFF;
-            }
-        }
-    }
+    // println!("x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\ny\nz");
+    // println!("test me");
+    // println!("test me again");
+
+    // test_panic();
 
     hcf();
 }
 
+fn test_panic() {
+    panic!("This is a panic test.")
+}
+
 #[panic_handler]
 fn rust_panic(_info: &core::panic::PanicInfo) -> ! {
+    println!("{}", _info);
     hcf();
 }
 
