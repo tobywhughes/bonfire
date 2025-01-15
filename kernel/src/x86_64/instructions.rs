@@ -1,6 +1,8 @@
 use core::arch::asm;
 
-use super::address::GDT_Pointer;
+use crate::println;
+
+use super::address::{GDT_Pointer, IDT_Pointer};
 
 #[inline]
 pub fn sgdt() -> GDT_Pointer {
@@ -22,6 +24,24 @@ pub unsafe fn lgdt(gdt: &GDT_Pointer) {
     }
 }
 
+#[inline]
+pub unsafe fn lidt(idt: &IDT_Pointer) {
+    unsafe {
+        asm!("lidt [{}]", in(reg) idt, options(readonly, nostack, preserves_flags));
+    }
+}
+
+#[inline]
+pub fn sidt() -> IDT_Pointer {
+    let mut idt_ptr = IDT_Pointer { size: 0, ptr: 0 };
+
+    unsafe {
+        asm!("sidt [{}]", in(reg) &mut idt_ptr, options(nostack, preserves_flags));
+    }
+    idt_ptr
+}
+
+#[inline]
 pub unsafe fn load_cs(selector: u16) {
     asm!(
         "push {selector_value}",
@@ -35,6 +55,16 @@ pub unsafe fn load_cs(selector: u16) {
     );
 }
 
+#[inline]
+pub unsafe fn get_cs() -> u16 {
+    let segment: u16;
+
+    asm!("mov {0:x}, cs", out(reg) segment, options(nomem, nostack, preserves_flags));
+
+    segment
+}
+
+#[inline]
 pub unsafe fn load_data_segment(selector: u16) {
     asm!(
         "mov ds, {selector_value}",

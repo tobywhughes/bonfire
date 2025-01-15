@@ -237,7 +237,7 @@ macro_rules! println {
 
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => ( if false {$crate::print!("\x1b[32m[DEBUG]\x1b[0m {}\n", format_args!($($arg)*)) });
+    ($($arg:tt)*) => ( if true {$crate::print!("\x1b[32m[DEBUG]\x1b[0m {}\n", format_args!($($arg)*)) });
 }
 
 #[macro_export]
