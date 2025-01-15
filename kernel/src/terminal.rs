@@ -237,26 +237,22 @@ macro_rules! println {
 
 #[macro_export]
 macro_rules! debug {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("\x1b[32m[DEBUG]\x1b[0m {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ( if false {$crate::print!("\x1b[32m[DEBUG]\x1b[0m {}\n", format_args!($($arg)*)) });
 }
 
 #[macro_export]
 macro_rules! info {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("\x1b[36m[INFO]\x1b[0m {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ( if true {$crate::print!("\x1b[36m[INFO]\x1b[0m {}\n", format_args!($($arg)*)) });
 }
 
 #[macro_export]
 macro_rules! warn {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("\x1b[33m[WARN]\x1b[0m {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ( if true {$crate::print!("\x1b[33m[WARN]\x1b[0m {}\n", format_args!($($arg)*))});
 }
 
 #[macro_export]
 macro_rules! error {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("\x1b[31m[ERROR]\x1b[0m {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ( if true {$crate::print!("\x1b[31m[ERROR]\x1b[0m {}\n", format_args!($($arg)*))});
 }
 
 #[doc(hidden)]

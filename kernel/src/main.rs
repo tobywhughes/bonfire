@@ -7,10 +7,14 @@ use framebuffer::FrameBuffer;
 use limine::request::{RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
 use terminal::{Terminal, TERMINAL};
+use x86_64::gdt::{GDTSegmentDescriptor, GlobalDescriptorTable, GLOBAL_DESCRIPTOR_TABLE};
+use x86_64::instructions::sgdt;
 
 mod framebuffer;
 mod psf;
 mod terminal;
+mod utils;
+mod x86_64;
 
 /// Sets the base revision to the latest revision supported by the crate.
 /// See specification for further info.
@@ -34,19 +38,11 @@ unsafe extern "C" fn kmain() -> ! {
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
 
-    println!("Hello. This is a test.\nHello. This is testing a newline!\nHello, this is testing the error char \t");
-    println!("abcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyzabcdefghijklmonpqrstuvwxyz");
-    println!("Color Test \x1b[31mShould be red\x1b[0m Should be back to normal");
-    debug!("Debug string test");
-    info!("Info string test");
-    warn!("Warn string test");
-    error!("Error string test");
+    println!("\x1b[31mBonfire OS\x1b[0m");
 
-    // println!("x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\ny\nz");
-    // println!("test me");
-    // println!("test me again");
-
-    // test_panic();
+    GLOBAL_DESCRIPTOR_TABLE.load();
+    // GLOBAL_DESCRIPTOR_TABLE.debug();
+    GlobalDescriptorTable::assert_load();
 
     hcf();
 }
