@@ -41,8 +41,8 @@ unsafe extern "C" fn kmain() -> ! {
     println!("\x1b[31mBonfire OS\x1b[0m");
 
     GLOBAL_DESCRIPTOR_TABLE.load();
-    // GLOBAL_DESCRIPTOR_TABLE.debug();
     GlobalDescriptorTable::assert_load();
+    // GLOBAL_DESCRIPTOR_TABLE.debug();
 
     hcf();
 }

@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     address::GDT_Pointer,
-    instructions::{lgdt, sgdt},
+    instructions::{lgdt, load_cs, load_data_segment, sgdt},
 };
 
 // GDT Descriptors recommended by OSDEV discord
@@ -33,6 +33,8 @@ lazy_static! {
 
 pub struct GlobalDescriptorTable {
     segments: [GDTSegmentDescriptor; GDT_LEN],
+    code_selector: u16,
+    data_selector: u16,
     len: usize,
 }
 
@@ -40,17 +42,19 @@ impl GlobalDescriptorTable {
     pub fn default() -> GlobalDescriptorTable {
         GlobalDescriptorTable {
             segments: [
-                GDTSegmentDescriptor::new(GDT_SEGMENT_NULL),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_CODE_16),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_DATA_16),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_CODE_32),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_DATA_32),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_CODE_64),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_DATA_64),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_USER_CODE_64),
-                GDTSegmentDescriptor::new(GDT_SEGMENT_USER_DATA_64),
+                GDTSegmentDescriptor::new(GDT_SEGMENT_NULL),    // 0x0000
+                GDTSegmentDescriptor::new(GDT_SEGMENT_CODE_16), //0x0008
+                GDTSegmentDescriptor::new(GDT_SEGMENT_DATA_16), //0x0010
+                GDTSegmentDescriptor::new(GDT_SEGMENT_CODE_32), //0x0018
+                GDTSegmentDescriptor::new(GDT_SEGMENT_DATA_32), //0x0020
+                GDTSegmentDescriptor::new(GDT_SEGMENT_CODE_64), //0x0028
+                GDTSegmentDescriptor::new(GDT_SEGMENT_DATA_64), //0x0030
+                GDTSegmentDescriptor::new(GDT_SEGMENT_USER_CODE_64), //0x0038
+                GDTSegmentDescriptor::new(GDT_SEGMENT_USER_DATA_64), //0x0040
             ],
             len: 9,
+            code_selector: 0x0028,
+            data_selector: 0x0030,
         }
     }
 
@@ -60,6 +64,9 @@ impl GlobalDescriptorTable {
                 size: (GDT_LEN as u16 - 1) * 8,
                 ptr: self.segments.as_ptr() as u64,
             });
+
+            load_cs(self.code_selector);
+            load_data_segment(self.data_selector);
         }
     }
 
@@ -75,7 +82,7 @@ impl GlobalDescriptorTable {
         let gdt_ptr = sgdt();
         let segment1_value: GDTSegmentDescriptor =
             GDTSegmentDescriptor::new(*(gdt_ptr.ptr as *const u64).add(1));
-        assert_or_panic(GDT_SEGMENT_CODE_16 == segment1_value.0, "GDT Loaded")
+        assert_or_panic(GDT_SEGMENT_CODE_16 == segment1_value.0, "GDT Load")
     }
 }
 
