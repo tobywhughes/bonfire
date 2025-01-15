@@ -1,7 +1,7 @@
-use core::fmt;
+use core::fmt::{self, Pointer};
 use lazy_static::lazy_static;
 
-use crate::{debug, println, x86_64::instructions::get_cs};
+use crate::{debug, info, println, x86_64::instructions::get_cs};
 
 use super::{
     address::IDT_Pointer,
@@ -38,7 +38,7 @@ impl IDTDescriptor {
             offset_low: 0,
             segment_selector: 0,
             ist_offset: 0,
-            options: 0,
+            options: 0b000_1110,
             offset_mid: 0,
             offset_high: 0,
             reserved: 0,
@@ -128,12 +128,12 @@ impl InterruptDescriptorTable {
     }
 
     pub unsafe fn load(&self) {
-        debug!("Loading IDT");
-        debug!(
-            "Descriptors 0 and 3: {:?} {:?}",
-            self.descriptors[0], self.descriptors[3]
-        );
-        debug!("CS From REG: {:04X}", get_cs());
+        // debug!("Loading IDT");
+        // debug!(
+        //     "Descriptors 0 and 3: {:?} {:?}",
+        //     self.descriptors[0], self.descriptors[3]
+        // );
+        // debug!("CS From REG: {:04X}", get_cs());
 
         lidt(&IDT_Pointer {
             size: (self.length as u16 - 1) * 16,
@@ -151,12 +151,12 @@ impl InterruptDescriptorTable {
         let current_size = (gdt_ptr.size / 16) + 1;
 
         println!();
-        debug!("Loaded Descriptors:");
-        for index in 0..current_size {
-            let descriptor = *((gdt_ptr.ptr as *const IDTDescriptor).add(index as usize));
+        // debug!("Loaded Descriptors:");
+        // for index in 0..current_size {
+        //     let descriptor = *((gdt_ptr.ptr as *const IDTDescriptor).add(index as usize));
 
-            debug!("{:?}", descriptor)
-        }
+        //     debug!("{:?}", descriptor)
+        // }
 
         // let segment1_value: GDTSegmentDescriptor =
         //     GDTSegmentDescriptor::new(*(gdt_ptr.ptr as *const u64).add(1));
@@ -164,7 +164,6 @@ impl InterruptDescriptorTable {
     }
 }
 
-#[derive(Debug)]
 #[repr(C)]
 struct ExceptionStackFrame {
     instruction_pointer: u64,
@@ -174,13 +173,41 @@ struct ExceptionStackFrame {
     stack_segment: u64,
 }
 
+impl core::fmt::Debug for ExceptionStackFrame {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Exception Stack Frame")
+            .field(
+                "\n    Instruction Pointer",
+                &format_args!("0x{:016X}", self.instruction_pointer),
+            )
+            .field(
+                "\n    Code Segment",
+                &format_args!("0x{:016X}", self.code_segment),
+            )
+            .field(
+                "\n    CPU Flags",
+                &format_args!("0x{:016X}", self.cpu_flags),
+            )
+            .field(
+                "\n    Stack Pointer",
+                &format_args!("0x{:016X}", self.stack_pointer),
+            )
+            .field(
+                "\n    Stack Segment",
+                &format_args!("0x{:016X}\n", self.stack_segment),
+            )
+            .finish()
+    }
+}
+
 extern "x86-interrupt" fn divide_by_zero_interrupt(stack_frame: ExceptionStackFrame) {
-    println!("DIVIDE BY ZERO INTERRUPT");
+    debug!("BREAKPOINT INTERRUPT");
+    debug!("{:?}", stack_frame)
 }
 
 extern "x86-interrupt" fn breakpoint_interrupt(stack_frame: ExceptionStackFrame) {
-    println!("BREAKPOINT INTERRUPT");
-    panic!();
+    debug!("BREAKPOINT INTERRUPT");
+    debug!("{:?}", stack_frame)
 }
 
 lazy_static! {
@@ -188,7 +215,7 @@ lazy_static! {
         let mut idt = InterruptDescriptorTable::default();
 
         let divide_by_zero_descriptor = IDTDescriptor::new(
-            divide_by_zero_interrupt as *const u64 as u64,
+            divide_by_zero_interrupt as u64,
             0x28,
             0,
             GateType::Interrupt,
@@ -197,7 +224,7 @@ lazy_static! {
         );
 
         let breakpoint_descriptor = IDTDescriptor::new(
-            breakpoint_interrupt as *const u64 as u64,
+            breakpoint_interrupt as u64,
             0x28,
             0,
             GateType::Interrupt,
@@ -209,6 +236,10 @@ lazy_static! {
         idt.add_descriptor(IDTDescriptor::empty());
         idt.add_descriptor(IDTDescriptor::empty());
         idt.add_descriptor(breakpoint_descriptor);
+
+        for _ in 0..MAX_IDT_SIZE - 4 {
+            idt.add_descriptor(IDTDescriptor::empty());
+        }
 
         idt
     };

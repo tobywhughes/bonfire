@@ -48,7 +48,7 @@ unsafe extern "C" fn kmain() -> ! {
 
     INTERRUPT_DESCRIPTOR_TABLE.load();
     InterruptDescriptorTable::assert_load();
-    // int3();
+    int3();
 
     hcf();
 }
