@@ -17,7 +17,7 @@ impl GDT_Pointer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(packed(2))]
 pub struct IDT_Pointer {
     pub size: u16,

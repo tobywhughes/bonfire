@@ -10,7 +10,8 @@ use limine::BaseRevision;
 use terminal::{Terminal, TERMINAL};
 use x86_64::gdt::{GDTSegmentDescriptor, GlobalDescriptorTable, GLOBAL_DESCRIPTOR_TABLE};
 use x86_64::idt::{InterruptDescriptorTable, INTERRUPT_DESCRIPTOR_TABLE};
-use x86_64::instructions::sgdt;
+use x86_64::instructions::{enable_interrupts, sgdt};
+use x86_64::pic::{assert_pic, init_pic};
 
 mod framebuffer;
 mod psf;
@@ -44,22 +45,23 @@ unsafe extern "C" fn kmain() -> ! {
 
     GLOBAL_DESCRIPTOR_TABLE.load();
     GlobalDescriptorTable::assert_load();
-    GLOBAL_DESCRIPTOR_TABLE.debug();
+    // GLOBAL_DESCRIPTOR_TABLE.debug();
 
     INTERRUPT_DESCRIPTOR_TABLE.load();
     InterruptDescriptorTable::assert_load();
-    int3();
+
+    init_pic();
+    enable_interrupts();
+
+    assert_pic();
+
+    // *(0xdeadbeef as *mut u8) = 42; // Double fault test
 
     hcf();
 }
 
 fn test_panic() {
     panic!("This is a panic test.")
-}
-
-#[inline]
-unsafe fn int3() {
-    asm!("int3", options(nomem, nostack));
 }
 
 #[panic_handler]

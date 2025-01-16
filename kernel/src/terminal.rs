@@ -1,4 +1,8 @@
-use crate::{framebuffer::FrameBuffer, psf::PSFFont};
+use crate::{
+    framebuffer::FrameBuffer,
+    psf::PSFFont,
+    x86_64::instructions::{disable_interrupts, enable_interrupts},
+};
 use core::fmt;
 use lazy_static::lazy_static;
 use limine::framebuffer;
@@ -237,7 +241,7 @@ macro_rules! println {
 
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => ( if true {$crate::print!("\x1b[32m[DEBUG]\x1b[0m {}\n", format_args!($($arg)*)) });
+    ($($arg:tt)*) => ( if false {$crate::print!("\x1b[32m[DEBUG]\x1b[0m {}\n", format_args!($($arg)*)) });
 }
 
 #[macro_export]
@@ -257,7 +261,9 @@ macro_rules! error {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
+    // THIS MAY DEADLOCK
     use core::fmt::Write;
+
     TERMINAL.lock().write_fmt(args).unwrap();
 }
 

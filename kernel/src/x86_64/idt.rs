@@ -1,11 +1,21 @@
 use core::fmt::{self, Pointer};
 use lazy_static::lazy_static;
 
-use crate::{debug, info, println, x86_64::instructions::get_cs};
+use crate::{
+    debug, info, print, println,
+    utils::assert::assert_or_panic,
+    x86_64::{
+        instructions::{get_cs, int3},
+        interrupts::irq::get_keyboard_idt_descriptor_and_index,
+        pic::pic_1_eoi,
+    },
+};
 
 use super::{
     address::IDT_Pointer,
     instructions::{lidt, sidt},
+    interrupts::ExceptionStackFrame,
+    pic::TIMER_ASSERT_CALLED,
 };
 
 #[derive(Copy, Clone)]
@@ -21,13 +31,13 @@ pub struct IDTDescriptor {
 }
 
 #[repr(u8)]
-enum GateType {
+pub enum GateType {
     Interrupt = 0b1110,
     Trap = 0b1111,
 }
 
 #[repr(u8)]
-enum PrivilegeLevel {
+pub enum PrivilegeLevel {
     Kernel = 0b00,
     User = 0b11,
 }
@@ -45,7 +55,7 @@ impl IDTDescriptor {
         }
     }
 
-    fn new(
+    pub fn new(
         offset: u64,
         segment_selector: u16,
         ist_offset: u8,
@@ -118,13 +128,12 @@ impl InterruptDescriptorTable {
     fn default() -> InterruptDescriptorTable {
         InterruptDescriptorTable {
             descriptors: [IDTDescriptor::empty(); MAX_IDT_SIZE],
-            length: 0,
+            length: MAX_IDT_SIZE,
         }
     }
 
-    fn add_descriptor(&mut self, descriptor: IDTDescriptor) -> () {
-        self.descriptors[self.length] = descriptor;
-        self.length += 1;
+    fn set_descriptor(&mut self, descriptor: IDTDescriptor, index: usize) -> () {
+        self.descriptors[index] = descriptor;
     }
 
     pub unsafe fn load(&self) {
@@ -135,79 +144,68 @@ impl InterruptDescriptorTable {
         // );
         // debug!("CS From REG: {:04X}", get_cs());
 
-        lidt(&IDT_Pointer {
+        lidt(&self.create_idt_pointer());
+    }
+
+    pub fn create_idt_pointer(&self) -> IDT_Pointer {
+        IDT_Pointer {
             size: (self.length as u16 - 1) * 16,
             ptr: self.descriptors.as_ptr() as u64,
-        });
+        }
     }
 
     pub unsafe fn assert_load() {
-        println!();
-        debug!("Retrieving IDT from sidt...");
-        let gdt_ptr = sidt();
-        debug!("Descriptor From IDT");
-        gdt_ptr.debug();
+        let loaded_idt_ptr = sidt();
 
-        let current_size = (gdt_ptr.size / 16) + 1;
+        let mut assert_passed = true;
+        // Loaded GDT GDT PTR Matches
 
-        println!();
-        // debug!("Loaded Descriptors:");
-        // for index in 0..current_size {
-        //     let descriptor = *((gdt_ptr.ptr as *const IDTDescriptor).add(index as usize));
+        assert_passed &= loaded_idt_ptr == INTERRUPT_DESCRIPTOR_TABLE.create_idt_pointer();
 
-        //     debug!("{:?}", descriptor)
-        // }
+        // Breakpoint called
+        int3();
+        assert_passed &= BREAKPOINT_ASSERT_CALLED;
 
-        // let segment1_value: GDTSegmentDescriptor =
-        //     GDTSegmentDescriptor::new(*(gdt_ptr.ptr as *const u64).add(1));
-        // assert_or_panic(GDT_SEGMENT_CODE_16 == segment1_value.0, "GDT Load")
-    }
-}
+        assert_or_panic(assert_passed, "IDT Load");
 
-#[repr(C)]
-struct ExceptionStackFrame {
-    instruction_pointer: u64,
-    code_segment: u64,
-    cpu_flags: u64,
-    stack_pointer: u64,
-    stack_segment: u64,
-}
-
-impl core::fmt::Debug for ExceptionStackFrame {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("Exception Stack Frame")
-            .field(
-                "\n    Instruction Pointer",
-                &format_args!("0x{:016X}", self.instruction_pointer),
-            )
-            .field(
-                "\n    Code Segment",
-                &format_args!("0x{:016X}", self.code_segment),
-            )
-            .field(
-                "\n    CPU Flags",
-                &format_args!("0x{:016X}", self.cpu_flags),
-            )
-            .field(
-                "\n    Stack Pointer",
-                &format_args!("0x{:016X}", self.stack_pointer),
-            )
-            .field(
-                "\n    Stack Segment",
-                &format_args!("0x{:016X}\n", self.stack_segment),
-            )
-            .finish()
+        // println!();
     }
 }
 
 extern "x86-interrupt" fn divide_by_zero_interrupt(stack_frame: ExceptionStackFrame) {
     debug!("BREAKPOINT INTERRUPT");
-    debug!("{:?}", stack_frame)
+    debug!("{:?}", stack_frame);
 }
+
+static mut BREAKPOINT_ASSERT_CALLED: bool = false;
 
 extern "x86-interrupt" fn breakpoint_interrupt(stack_frame: ExceptionStackFrame) {
     debug!("BREAKPOINT INTERRUPT");
-    debug!("{:?}", stack_frame)
+    unsafe {
+        BREAKPOINT_ASSERT_CALLED = true;
+    }
+    debug!("{:?}", stack_frame);
+}
+
+extern "x86-interrupt" fn timer_irq(stack_frame: ExceptionStackFrame) {
+    // debug!("TIMER INTERRUPT");
+    // debug!("{:?}", stack_frame);
+    // print!(".");
+    unsafe {
+        TIMER_ASSERT_CALLED = true;
+    }
+
+    pic_1_eoi();
+}
+
+extern "x86-interrupt" fn double_fault_exception(
+    stack_frame: ExceptionStackFrame,
+    error_code: u64,
+) {
+    debug!("DOBULE FAULT INTERRUPT");
+    debug!("{:?}", stack_frame);
+    debug! {"Error Code: {:016X}", error_code}
+    panic!("DOUBLE FAULT WITH ERROR CODE [{:016X}]", error_code)
 }
 
 lazy_static! {
@@ -232,14 +230,31 @@ lazy_static! {
             true,
         );
 
-        idt.add_descriptor(divide_by_zero_descriptor);
-        idt.add_descriptor(IDTDescriptor::empty());
-        idt.add_descriptor(IDTDescriptor::empty());
-        idt.add_descriptor(breakpoint_descriptor);
+        let double_fault_descriptor = IDTDescriptor::new(
+            double_fault_exception as u64,
+            0x28,
+            0,
+            GateType::Trap,
+            PrivilegeLevel::Kernel,
+            true,
+        );
 
-        for _ in 0..MAX_IDT_SIZE - 4 {
-            idt.add_descriptor(IDTDescriptor::empty());
-        }
+        let timer_descriptor = IDTDescriptor::new(
+            timer_irq as u64,
+            0x28,
+            0,
+            GateType::Interrupt,
+            PrivilegeLevel::Kernel,
+            true,
+        );
+
+        let (keyboard_descriptor, keyboard_index) = get_keyboard_idt_descriptor_and_index();
+
+        idt.set_descriptor(divide_by_zero_descriptor, 0x00);
+        idt.set_descriptor(breakpoint_descriptor, 0x03);
+        idt.set_descriptor(double_fault_descriptor, 0x08);
+        idt.set_descriptor(timer_descriptor, 0x20);
+        idt.set_descriptor(keyboard_descriptor, keyboard_index);
 
         idt
     };
