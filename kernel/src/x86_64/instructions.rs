@@ -12,8 +12,6 @@ pub fn sgdt() -> GDT_Pointer {
         asm!("sgdt [{}]", in(reg) &mut gdt_ptr, options(nostack, preserves_flags));
     }
 
-    gdt_ptr.debug();
-
     gdt_ptr
 }
 
@@ -105,5 +103,30 @@ pub fn enable_interrupts() {
 pub fn disable_interrupts() {
     unsafe {
         asm!("cli", options(preserves_flags, nostack));
+    }
+}
+
+#[inline]
+pub fn read_cr3() -> u64 {
+    let cr3: u64;
+    unsafe {
+        asm!(
+            "mov {}, cr3",
+            out(reg) cr3,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+    cr3
+}
+
+#[inline]
+pub fn flush_tlb() {
+    unsafe {
+        asm!(
+            "mov {tmp}, cr3",
+            "mov cr3, {tmp}",
+            tmp = lateout(reg) _,
+            options( nostack, preserves_flags)
+        );
     }
 }

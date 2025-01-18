@@ -7,13 +7,17 @@ use core::arch::asm;
 use framebuffer::FrameBuffer;
 use limine::request::{RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
+use limine_utils::memory_map::mmap_scratch;
 use terminal::{Terminal, TERMINAL};
 use x86_64::gdt::{GDTSegmentDescriptor, GlobalDescriptorTable, GLOBAL_DESCRIPTOR_TABLE};
 use x86_64::idt::{InterruptDescriptorTable, INTERRUPT_DESCRIPTOR_TABLE};
 use x86_64::instructions::{enable_interrupts, sgdt};
+use x86_64::memory::paging::{allocate_frame, init_allocator_page_tables};
+// use x86_64::memory::paging::scratch_paging_info;
 use x86_64::pic::{assert_pic, init_pic};
 
 mod framebuffer;
+mod limine_utils;
 mod psf;
 mod terminal;
 mod utils;
@@ -52,8 +56,12 @@ unsafe extern "C" fn kmain() -> ! {
 
     init_pic();
     enable_interrupts();
-
     assert_pic();
+
+    // mmap_scratch();
+    init_allocator_page_tables();
+    // allocate_frame();
+    // scratch_paging_info();
 
     // *(0xdeadbeef as *mut u8) = 42; // Double fault test
 

@@ -180,11 +180,11 @@ extern "x86-interrupt" fn divide_by_zero_interrupt(stack_frame: ExceptionStackFr
 static mut BREAKPOINT_ASSERT_CALLED: bool = false;
 
 extern "x86-interrupt" fn breakpoint_interrupt(stack_frame: ExceptionStackFrame) {
-    debug!("BREAKPOINT INTERRUPT");
+    // debug!("BREAKPOINT INTERRUPT");
     unsafe {
         BREAKPOINT_ASSERT_CALLED = true;
     }
-    debug!("{:?}", stack_frame);
+    // debug!("{:?}", stack_frame);
 }
 
 extern "x86-interrupt" fn timer_irq(stack_frame: ExceptionStackFrame) {
@@ -206,6 +206,13 @@ extern "x86-interrupt" fn double_fault_exception(
     debug!("{:?}", stack_frame);
     debug! {"Error Code: {:016X}", error_code}
     panic!("DOUBLE FAULT WITH ERROR CODE [{:016X}]", error_code)
+}
+
+extern "x86-interrupt" fn page_fault_exception(stack_frame: ExceptionStackFrame, error_code: u64) {
+    debug!("PAGE FAULT INTERRUPT");
+    debug!("{:?}", stack_frame);
+    debug! {"Error Code: {:032b}", error_code}
+    panic!("Panicking for now");
 }
 
 lazy_static! {
@@ -239,6 +246,15 @@ lazy_static! {
             true,
         );
 
+        let page_fault_descriptor = IDTDescriptor::new(
+            page_fault_exception as u64,
+            0x28,
+            0,
+            GateType::Trap,
+            PrivilegeLevel::Kernel,
+            true,
+        );
+
         let timer_descriptor = IDTDescriptor::new(
             timer_irq as u64,
             0x28,
@@ -255,6 +271,7 @@ lazy_static! {
         idt.set_descriptor(double_fault_descriptor, 0x08);
         idt.set_descriptor(timer_descriptor, 0x20);
         idt.set_descriptor(keyboard_descriptor, keyboard_index);
+        idt.set_descriptor(page_fault_descriptor, 0x0E);
 
         idt
     };
