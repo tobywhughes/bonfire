@@ -9,7 +9,7 @@ use limine::BaseRevision;
 use x86_64::gdt::{GlobalDescriptorTable, GLOBAL_DESCRIPTOR_TABLE};
 use x86_64::idt::{InterruptDescriptorTable, INTERRUPT_DESCRIPTOR_TABLE};
 use x86_64::instructions::enable_interrupts;
-use x86_64::memory::frame_allocator::init_allocator_page_tables;
+use x86_64::memory::frame_allocator::{allocate_frame, init_allocator_page_tables};
 use x86_64::pic::{assert_pic, init_pic};
 
 mod framebuffer;
@@ -56,7 +56,35 @@ unsafe extern "C" fn kmain() -> ! {
 
     // mmap_scratch();
     init_allocator_page_tables();
-    // allocate_frame();
+    let frame0 = allocate_frame();
+    let frame1 = allocate_frame();
+    let frame2 = allocate_frame();
+    frame1.free();
+    let frame3 = allocate_frame();
+
+    debug!("{:?}", frame0);
+    debug!("{:?}", frame1);
+    debug!("{:?}", frame2);
+    debug!("{:?}", frame3);
+
+    frame2.free();
+
+    debug!("Testing write 0xABAB_ABAB_ABAB_ABAB to frame 0 (page 0)");
+    *(frame0.base_virtual_address as *mut u64) = 0xABAB_ABAB_ABAB_ABAB;
+    debug!(
+        "Testing read from frame 1: {:016X}",
+        *(frame0.base_virtual_address as *mut u64)
+    );
+
+    debug!("Testing write 0xABAB_ABAB_ABAB_ABAB to frame 3 (page 1)");
+    *(frame3.base_virtual_address as *mut u64) = 0xABAB_ABAB_ABAB_ABAB;
+    debug!(
+        "Testing read from frame 4: {:016X}",
+        *(frame3.base_virtual_address as *mut u64)
+    );
+
+    debug!("Testing write to frame 2 (page 2) - should page fault because page freed");
+    *(frame2.base_virtual_address as *mut u64) = 0;
 
     hcf();
 }
